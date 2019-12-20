@@ -1,19 +1,25 @@
 #!/bin/bash
 
-srcdir="/src"
-defaultJsonFile="$srcdir/backstop.json"
-jobdir="$srcdir/jobs"
-jobdirIn="$jobdir/pending"
-jobdirOut="$jobdir/completed"
-jobdirErr="$jobdir/error"
-[ ! -d $jobdirIn ] && mkdir -p $jobdirIn
-[ ! -d $jobdirOut ] && mkdir -p $jobdirOut
-[ ! -d $jobdirErr ] && mkdir -p $jobdirErr
-if [ ! -f $defaultJsonFile ] ; then
-  echo "CREATING DEFAULT BACKSTOP JSON..."
-  backstop init
-fi
+set -a
 
+init() {
+  appdir="/app"
+  srcdir="/src"
+  defaultJsonFile="$srcdir/backstop.json"
+  jobdir="$srcdir/jobs"
+  jobdirIn="$jobdir/pending"
+  jobdirOut="$jobdir/completed"
+  jobdirErr="$jobdir/error"
+
+  [ testing ] && return 0
+  [ ! -d $jobdirIn ] && mkdir -p $jobdirIn
+  [ ! -d $jobdirOut ] && mkdir -p $jobdirOut
+  [ ! -d $jobdirErr ] && mkdir -p $jobdirErr
+  if [ ! -f $defaultJsonFile ] ; then
+    echo "CREATING DEFAULT BACKSTOP JSON..."
+    backstop init
+  fi
+}
 
 getNextJobFile() {
   for propfile in $(ls -1 $jobdirIn) ; do
@@ -34,13 +40,14 @@ dobatch() {
     while read -r line || [ -n "$line" ] ; do
       local jsonfile=$(echo -n "$line" | cut -d '=' -f1 | xargs)
       local propname=$(echo -n "$line" | cut -d '=' -f2- | xargs)
+      # The cut function will return the first element if there is no second element (non null or empty string.)
       if [ "$jsonfile" == "$propname" ] ; then
         jsonfile="$defaultJsonFile"
       fi
       if [ -f $jsonfile ] ; then
-        [ -n "$debug" ] && set +x
+        debugging && set +x
         local stderr="$(dosingle $jsonfile $propname 2>&1 1>/dev/null)"
-        [ -n "$debug" ] && set -x
+        debugging && set -x
         if [ -n "$stderr" ] ; then
           echo "$stderr"
           printf "\n\n$line\n$stderr" >> temp.err
@@ -79,7 +86,7 @@ dosingle() {
   fi
 
   # If debugging is turned on, turn if off temporarily because the entire content of the backstop.json
-  # file would get printed out to the console, which is far to verbose.
+  # file would get printed out to the console, which is far too verbose.
   local json="$(cat $jsonfile)"
   local parsecmd="JSON.parse(process.argv[1]).$propname"
   local prop=$(node -pe "$parsecmd" "$json")
@@ -113,15 +120,29 @@ if [ $debug == "debug" ] ; then
   shift
   set -x
 else
-  debug=""
+  debug=
 fi
+debugging() {
+  [ -n "$debug" ] && true || false
+}
 
 # Get the task argument
 task="$1"
 shift
 
+testing() {
+  [ "${task,,}" == "test" ] && true || false
+}
+
+testScenario() {
+  /bin/bash $appdir/scenario.sh $@
+}
+
+init
+
 case "$task" in
   all) dobatches $@ ;;
   batch) dobatch $@ ;;
   single) dosingle $@ ;;
+  scenario) testScenario $@ ;;
 esac
