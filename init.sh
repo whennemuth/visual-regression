@@ -38,10 +38,14 @@ dobatch() {
         jsonfile="$defaultJsonFile"
       fi
       if [ -f $jsonfile ] ; then
-        local stderr=$(dosingle "$jsonfile" "$propname" 2>&1 1>/dev/null)
+        [ -n "$debug" ] && set +x
+        local stderr="$(dosingle $jsonfile $propname 2>&1 1>/dev/null)"
+        [ -n "$debug" ] && set -x
         if [ -n "$stderr" ] ; then
           echo "$stderr"
-          printf "\n\n$line\n$err" >> temp.err
+          printf "\n\n$line\n$stderr" >> temp.err
+        else
+          echo "$line" >> temp.ok
         fi
       else
         local err="No such file: $jsonfile"
@@ -50,12 +54,8 @@ dobatch() {
       fi 
     done < $initfile
 
-    if [ -f temp.err ] ; then
-      archive $initfile "$(pwd)/temp.err"
-      rm -f temp.err
-    else
-      archive $initfile
-    fi
+    archive $initfile "$(pwd)"
+    
     true
   else
     false
@@ -78,37 +78,46 @@ dosingle() {
     return 1
   fi
 
+  # If debugging is turned on, turn if off temporarily because the entire content of the backstop.json
+  # file would get printed out to the console, which is far to verbose.
   local json="$(cat $jsonfile)"
   local parsecmd="JSON.parse(process.argv[1]).$propname"
   local prop=$(node -pe "$parsecmd" "$json")
+  
   echo $prop
 }
 
 archive() {
   local jobfile="$1"
-  local errfile="$2"
-  local shortname=$(echo "$jobfile" | rev | cut -d '/' -f1 | rev)
+  local tempdir="$2"
+  local okfile="$tempdir/temp.ok"
+  local errfile="$tempdir/temp.err"
   local outdir="$jobdirOut"
-  if [ -n "$errfile" ] ; then
-    outdir="$jobdirErr"
-    printf "\n----------- ERRORS -----------\n\n" >> $jobfile
-    cat $errfile >> $jobfile
+  local shortname=$(echo "$jobfile" | rev | cut -d '/' -f1 | rev)
+  local archive="$(date +"%m-%d-%Y-%T.N")-$shortname"
+
+  if [ -f $okfile ] ; then
+    mv $okfile "$jobdirOut/$archive"
   fi
-  local archivefile="$outdir/$(date +"%m-%d-%Y-%T")-$shortname"
-  mv $jobfile $archivefile
+
+  if [ -f $errfile ] ; then
+    mv $errfile "$jobdirErr/$archive"
+  fi
+
+  rm -f $jobfile
 }
 
 # Get the optional debug argument if it was provided
 debug="${1,,}"
-echo "debug=$debug"
 if [ $debug == "debug" ] ; then
   shift
   set -x
+else
+  debug=""
 fi
 
 # Get the task argument
 task="$1"
-echo "task=$task"
 shift
 
 case "$task" in
