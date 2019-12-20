@@ -1,11 +1,12 @@
-ARG NODE_VERSION=12
-FROM node:$NODE_VERSION as APP
+FROM backstopjs/backstopjs:latest
 
-WORKDIR /opt
-RUN npx create-react-app visual-regression && \
-    cd visual-regression
+RUN echo "deb http://deb.debian.org/debian stretch main contrib" >> /etc/apt/sources.list && \
+    apt update && \
+    apt install -y vim
 
-WORKDIR /opt/visual-regression
+WORKDIR /app
+COPY init.sh .
 
-CMD [ "npm", "start" ]
+WORKDIR /src
+ENTRYPOINT [ "/bin/bash", "/app/init.sh" ]
 
