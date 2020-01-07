@@ -5,7 +5,8 @@ set -a
 init() {
   appdir="/app"
   srcdir="/src"
-  defaultJsonFile="$srcdir/backstop.json"
+  templateJsonFile="$srcdir/backstop.json"
+  outputJsonFile="$srcdir/backstop.custom.json"
   jobdir="$srcdir/jobs"
   jobdirIn="$jobdir/pending"
   jobdirOut="$jobdir/completed"
@@ -15,8 +16,8 @@ init() {
   [ ! -d $jobdirIn ] && mkdir -p $jobdirIn
   [ ! -d $jobdirOut ] && mkdir -p $jobdirOut
   [ ! -d $jobdirErr ] && mkdir -p $jobdirErr
-  if [ ! -f $defaultJsonFile ] ; then
-    echo "CREATING DEFAULT BACKSTOP JSON..."
+  if [ ! -f $templateJsonFile ] ; then
+    echo "CREATING TEMPLATE BACKSTOP JSON..."
     backstop init
   fi
 }
@@ -42,7 +43,7 @@ dobatch() {
       local propname=$(echo -n "$line" | cut -d '=' -f2- | xargs)
       # The cut function will return the first element if there is no second element (non null or empty string.)
       if [ "$jsonfile" == "$propname" ] ; then
-        jsonfile="$defaultJsonFile"
+        jsonfile="$templateJsonFile"
       fi
       if [ -f $jsonfile ] ; then
         debugging && set +x
@@ -79,7 +80,7 @@ dosingle() {
     fi
   elif [ "$#" -eq 1 ] ; then
     local propname="$1"
-    local jsonfile="$defaultJsonFile"
+    local jsonfile="$templateJsonFile"
   else
     echo "dosingle: invalid number of arguments!"
     return 1

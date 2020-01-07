@@ -4,8 +4,22 @@
 
 debugging && set -x
 
+parseargs() {
+
+}
+
+# Create a backstop json file based on an existing template backstop.json file.
+# It will create a copy of the template and modify the default scenario in it to include field
+# values specified in the parameter list.
+#
+# Example:
+#   sh scenario.sh \
+#     templateJsonFile=/src/backstop.json \
+#     outputJsonFile=/src/backstop.custom.json \
+#     inputParmsFile=/src/jobs/pending/test1.props
+#
 addScenario() {
-  local defaultJson="$(cat $defaultJsonFile)"
+  local defaultJson="$(cat $templateJsonFile)"
 
   local js=$(cat <<EOF
     var scenario = {};
@@ -21,6 +35,8 @@ addScenario() {
 EOF
   )
 
+  # RESUME NEXT: These should come out of a job file. Need to rewrite job file parsing logic such that each line item is of the format:
+  # backstop.json.file|field=value
   local label='THIS IS A TEST'
   local url='https://www.w3schools.com/js/js_json_stringify.asp'
   local referenceUrl='https://www.w3schools.com/js/js_json_parse.asp'
@@ -32,9 +48,10 @@ EOF
     "referenceUrl=$referenceUrl" | sed 's/undefined//g'
   )"
 
-  echo "$scenarioOverrides" | jq '.' > $srcdir/backstop.custom.json
+  echo "$scenarioOverrides" | jq '.' > $outputJsonFile
   # local backstop="$(echo "$scenarioOverrides" | jq '.')"
   # echo "$backstop"
 } 
+
 
 addScenario
