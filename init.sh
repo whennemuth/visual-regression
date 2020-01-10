@@ -2,7 +2,9 @@
 
 set -a
 
+# Parse aruments, check/create directory structure, make sure a default backstop json template file exists.
 init() {
+
   appdir="/app"
   srcdir="/src"
   templateJsonFile="$srcdir/backstop.json"
@@ -12,13 +14,68 @@ init() {
   jobdirOut="$jobdir/completed"
   jobdirErr="$jobdir/error"
 
-  [ testing ] && return 0
+  parseargs $@
+
+  if printInit ; then
+    echo "task=$task"
+    echo "jobfile=$jobfile"
+    echo "debug=$([ -z "$debug" ] && echo 'false' || echo 'true')"
+    echo "templateJsonFile=$templateJsonFile"
+    echo "outputJsonFile=$outputJsonFile"
+    echo "jobdirIn=$jobdirIn"
+    echo "jobdirOut=$jobdirOut"
+    echo "jobdirErr=$jobdirErr"
+  fi
+
   [ ! -d $jobdirIn ] && mkdir -p $jobdirIn
   [ ! -d $jobdirOut ] && mkdir -p $jobdirOut
   [ ! -d $jobdirErr ] && mkdir -p $jobdirErr
   if [ ! -f $templateJsonFile ] ; then
     echo "CREATING TEMPLATE BACKSTOP JSON..."
     backstop init
+  fi
+}
+
+# Parse the arguments.
+#   sh init.sh --f /tmp/jobfile --debug batch
+#   sh init.sh --jobfile /tmp/jobfile batch -d
+#   sh init.sh --task batch --debug --jobfile /tmp/jobfile
+# All 3 of the above are equivalent
+parseargs() {
+  while (( $# )) ; do
+    case "$1" in
+      -d|--debug) 
+        debug="true"
+        ;;
+      -t|--task)
+        shift
+        task="$1"
+        ;;
+      -f|--jobfile)
+        shift
+        jobfile="$1"
+        ;;
+      *)
+        local temp="$1"
+        ;;
+    esac
+    shift
+  done
+
+  [ -n "$temp" ] && task="$temp"
+  if [ -z "$task" ] ; then
+    echo "No task provided!"
+    exit 1
+  fi
+  # If a specific job file was indicated, move it to the standard pending directory
+  if [ -n "$jobfile" ] ; then
+    if [ -f "$jobfile" ] ; then
+      echo "Moving $jobfile to $jobdirIn"
+      mv $jobfile $jobdirIn
+    else
+      echo "No such file: $jobfile"
+      exit 1
+    fi
   fi
 }
 
@@ -115,35 +172,21 @@ archive() {
   rm -f $jobfile
 }
 
-# Get the optional debug argument if it was provided
-debug="${1,,}"
-if [ $debug == "debug" ] ; then
-  shift
-  set -x
-else
-  debug=
-fi
-debugging() {
-  [ -n "$debug" ] && true || false
-}
+debugging() { [ -n "$debug" ] ; }
 
-# Get the task argument
-task="$1"
-shift
-
-testing() {
-  [ "${task,,}" == "test" ] && true || false
-}
+printInit() { [ "$task" == "init" ] ; }
 
 testScenario() {
   /bin/bash $appdir/scenario.sh $@
 }
 
-init
+init $@
 
 case "$task" in
-  all) dobatches $@ ;;
-  batch) dobatch $@ ;;
-  single) dosingle $@ ;;
-  scenario) testScenario $@ ;;
+  init) exit ;;
+  all) dobatches ;;
+  batch) dobatch ;;
+  single) dosingle ;;
+  scenario) testScenario ;;
+  '*') echo "Unrecognized task: \"$task\"" ;;
 esac
